@@ -30,6 +30,12 @@
   <packaging>pom</packaging>
   <version>1.0</version>
 
+  <properties>
+    <maven.compiler.source>1.7</maven.compiler.source>
+    <maven.compiler.target>1.7</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+    
   <modules>
     <module>project1</module>
     <module>project2</module>

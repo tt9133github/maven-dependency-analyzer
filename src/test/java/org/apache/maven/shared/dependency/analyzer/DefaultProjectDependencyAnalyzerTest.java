@@ -1,6 +1,8 @@
 package org.apache.maven.shared.dependency.analyzer;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -8,6 +10,7 @@ import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.JavaVersion;
 import org.apache.commons.lang3.SystemUtils;
 
@@ -82,7 +85,6 @@ public class DefaultProjectDependencyAnalyzerTest
         {
             RepositoryTool repositoryTool = (RepositoryTool) lookup( RepositoryTool.ROLE );
             localRepo = repositoryTool.findLocalRepositoryDirectory();
-            System.out.println( "Local repository: " + localRepo );
         }
 
         analyzer = (ProjectDependencyAnalyzer) lookup( ProjectDependencyAnalyzer.ROLE );
@@ -176,13 +178,8 @@ public class DefaultProjectDependencyAnalyzerTest
 
         MavenProject project2 = getProject( "jarWithCompileDependency/project2/pom.xml" );
 
-        if ( project2.getBuild().getOutputDirectory().contains( "${" ) )
-        {
-            // if Maven version used as dependency is upgraded to >= 2.2.0
-            throw new TestToolsException( "output directory was not interpolated: "
-                + project2.getBuild().getOutputDirectory() );
-        }
-
+        assertFalse(project2.getArtifacts().isEmpty());
+        
         ProjectDependencyAnalysis actualAnalysis = analyzer.analyze( project2 );
 
         Artifact project1 = createArtifact( "org.apache.maven.shared.dependency-analyzer.tests",
@@ -237,20 +234,20 @@ public class DefaultProjectDependencyAnalyzerTest
 
         ProjectDependencyAnalysis actualAnalysis = analyzer.analyze( project2 );
 
-        Artifact project1 = createArtifact( "org.apache.maven.shared.dependency-analyzer.tests",
+        Artifact artifact1 = createArtifact( "org.apache.maven.shared.dependency-analyzer.tests",
                                             "jarWithTestDependency1", "jar", "1.0", "test" );
         Artifact junit = createArtifact( "junit", "junit", "jar", "3.8.1", "test" );
 
         ProjectDependencyAnalysis expectedAnalysis;
         if ( SystemUtils.isJavaVersionAtLeast( JavaVersion.JAVA_1_8 ) )
         {
-            Set<Artifact> usedDeclaredArtifacts = new HashSet<Artifact>( Arrays.asList( project1, junit ) );
+            Set<Artifact> usedDeclaredArtifacts = new HashSet<Artifact>( Arrays.asList( artifact1, junit ) );
             expectedAnalysis = new ProjectDependencyAnalysis( usedDeclaredArtifacts, null, null, null );
         }
         else
         {
             // With JDK 7 and earlier, not all deps are identified correctly
-            Set<Artifact> usedDeclaredArtifacts = Collections.singleton( project1 );
+            Set<Artifact> usedDeclaredArtifacts = Collections.singleton( artifact1 );
             Set<Artifact> unusedDeclaredArtifacts = Collections.singleton( junit );
             expectedAnalysis = new ProjectDependencyAnalysis( usedDeclaredArtifacts, null, unusedDeclaredArtifacts,
                     null );
@@ -405,12 +402,6 @@ public class DefaultProjectDependencyAnalyzerTest
 
     private void compileProject(String pomPath, Properties properties) throws TestToolsException {
         File pom = getTestFile( "target/test-classes/", pomPath );
-        if ( SystemUtils.isJavaVersionAtLeast( JavaVersion.JAVA_9 )
-             && !properties.containsKey( "maven.compiler.source" ) )
-        {
-          properties.put( "maven.compiler.source", "1.7" );
-          properties.put( "maven.compiler.target", "1.7" );
-        }
         
         String httpsProtocols = System.getProperty( "https.protocols" );
         if ( httpsProtocols != null )
@@ -427,6 +418,18 @@ public class DefaultProjectDependencyAnalyzerTest
         InvocationResult result = buildTool.executeMaven( request );
 
         assertNull( "Error compiling test project", result.getExecutionException() );
+        
+        if ( result.getExitCode() != 0 ) {
+            try ( FileInputStream in = new FileInputStream( log ) )
+            {
+                IOUtils.copy( in, System.err );
+            }
+            catch ( IOException ex )
+            {
+                throw new TestToolsException( ex.getMessage() );
+            }
+        }
+        
         assertEquals( "Error compiling test project", 0, result.getExitCode() );
     }
 

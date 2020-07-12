@@ -52,7 +52,6 @@ public class DefaultClassAnalyzerTest
         }
     }
     
-    
     public void testAnalyzeWithJar()
         throws IOException
     {
@@ -71,16 +70,17 @@ public class DefaultClassAnalyzerTest
     {
         //to reproduce MDEP-143
         // corrupt the jar file by altering its contents
-        FileInputStream fis = new FileInputStream( file );
-        ByteArrayOutputStream baos = new ByteArrayOutputStream( 100 );
-        IOUtil.copy( fis, baos, 100 );
-        fis.close();
-        byte [] ba = baos.toByteArray();
-        ba[50] = 1;
-        FileOutputStream fos = new FileOutputStream( file );
-        IOUtil.copy( ba, fos );
-        fos.close();
-
+        try ( FileInputStream fis = new FileInputStream( file ) )
+        {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream( 100 );
+            IOUtil.copy( fis, baos, 100 );
+            byte [] ba = baos.toByteArray();
+            ba[50] = 1;
+            FileOutputStream fos = new FileOutputStream( file );
+            IOUtil.copy( ba, fos );
+            fos.close();
+        }
+        
         DefaultClassAnalyzer analyzer = new DefaultClassAnalyzer();
 
         try
